@@ -77,5 +77,39 @@ namespace OrderApi.Controllers
             return NoContent();
         }
 
+        // Edit status of order
+        [HttpPut("status/{id}")]
+        public IActionResult EditOrderStatus(int id, StatusEnums status)
+        {
+            var orderToEdit = repository.Get(id);
+            if (orderToEdit == null)
+            {
+                return BadRequest();
+            }
+
+            orderToEdit.Status = status;
+            repository.Edit(orderToEdit);
+            return new NoContentResult();
+        }
+        
+        // Edit order (for CRUD)
+        [HttpPut("{id}")]
+        public IActionResult EditOrder(int id, [FromBody]Order newOrder)
+        {
+            var orderToEdit = repository.Get(id);
+            if (orderToEdit == null)
+            {
+                return BadRequest();
+            }
+
+            orderToEdit.Status = newOrder.Status;
+            orderToEdit.Quantity = newOrder.Quantity;
+            orderToEdit.ProductId = newOrder.ProductId;
+            orderToEdit.Date = newOrder.Date;
+            
+            repository.Edit(orderToEdit);
+            return new NoContentResult();
+        }
+
     }
 }

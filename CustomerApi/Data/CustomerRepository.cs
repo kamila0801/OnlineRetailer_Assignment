@@ -1,13 +1,13 @@
-using CustomerApi.Models;
+using SharedModels;
 using Microsoft.EntityFrameworkCore;
 
 namespace CustomerApi.Data;
 
-public class Repository : IRepository
+public class CustomerRepository : IRepository<Customer>
 {
     private readonly CustomerDbContext _db;
     
-    public Repository(CustomerDbContext context)
+    public CustomerRepository(CustomerDbContext context)
     {
         _db = context;
     }

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using OrderApi.Models;
+using SharedModels;
 using System;
 
 namespace OrderApi.Data
@@ -13,22 +13,6 @@ namespace OrderApi.Data
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
 
-            // Look for any Products
-            if (context.Orders.Any())
-            {
-                return;   // DB has been seeded
-            }
-
-            List<Order> orders = new List<Order>
-            {
-                new Order { Date = DateTime.Today, ProductId = 1, Quantity = 2 },
-                new Order { Date = DateTime.Today, ProductId = 2, Quantity = 1 },
-                new Order { Date = DateTime.Today, ProductId = 3, Quantity = 2 },
-                new Order { Date = DateTime.Today, ProductId = 1, Quantity = 1 }
-            };
-
-            context.Orders.AddRange(orders);
-            context.SaveChanges();
         }
     }
 }

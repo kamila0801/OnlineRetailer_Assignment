@@ -1,11 +1,11 @@
-using CustomerApi.Models;
+using SharedModels;
 
 namespace CustomerApi.Data;
 
-public interface IRepository
+public interface IRepository<T>
 {
-    Customer Get(int id);
-    Customer Add(Customer customer);
-    Customer Update(Customer customer);
+    T Get(int id);
+    T Add(T customer);
+    T Update(T customer);
     bool Delete(int id);
 }

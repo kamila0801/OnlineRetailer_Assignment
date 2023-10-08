@@ -1,4 +1,4 @@
-using CustomerApi.Models;
+using SharedModels;
 using Microsoft.EntityFrameworkCore;
 
 namespace CustomerApi.Data;

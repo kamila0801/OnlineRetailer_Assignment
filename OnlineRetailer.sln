@@ -9,6 +9,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomerApi", "CustomerApi\
 EndProject
 Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "docker-compose.dcproj", "{98CBE257-DFFA-48F7-8D4A-ACFE8B80B6E1}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "New Folder", "New Folder", "{C19C9E8B-EE46-4276-8538-ED9454E2FF99}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Kubernetes", "Kubernetes", "{ECA98C40-6945-441F-849F-8E9C3D0379FE}"
+	ProjectSection(SolutionItems) = preProject
+		Kubernetes\orderapi.yml = Kubernetes\orderapi.yml
+		Kubernetes\productapi.yml = Kubernetes\productapi.yml
+		Kubernetes\customerapi.yml = Kubernetes\customerapi.yml
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,5 +40,8 @@ Global
 		{98CBE257-DFFA-48F7-8D4A-ACFE8B80B6E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{98CBE257-DFFA-48F7-8D4A-ACFE8B80B6E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{98CBE257-DFFA-48F7-8D4A-ACFE8B80B6E1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C19C9E8B-EE46-4276-8538-ED9454E2FF99} = {ECA98C40-6945-441F-849F-8E9C3D0379FE}
 	EndGlobalSection
 EndGlobal

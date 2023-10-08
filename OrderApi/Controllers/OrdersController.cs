@@ -2,7 +2,8 @@
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
 using OrderApi.Data;
-using OrderApi.Models;
+using OrderApi.Infrastructure;
+using SharedModels;
 using RestSharp;
 
 namespace OrderApi.Controllers
@@ -12,20 +13,30 @@ namespace OrderApi.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly IRepository<Order> repository;
+        private readonly IServiceGateway<Product> productServiceGateway;
+        private readonly IServiceGateway<Customer> customerServiceGateway;
+        private readonly IMessagePublisher messagePublisher;
 
-        public OrdersController(IRepository<Order> repos)
+        public OrdersController(
+            IRepository<Order> repo,
+            IServiceGateway<Product> productGateway,
+            IServiceGateway<Customer> customerGateway,
+            IMessagePublisher publisher)
         {
-            repository = repos;
+            repository = repo;
+            productServiceGateway = productGateway;
+            customerServiceGateway = customerGateway;
+            messagePublisher = publisher;
         }
 
-        // GET: orders
+        // GET: all orders
         [HttpGet]
         public IEnumerable<Order> Get()
         {
             return repository.GetAll();
         }
 
-        // GET orders/5
+        // GET order by id
         [HttpGet("{id}", Name = "GetOrder")]
         public IActionResult Get(int id)
         {
@@ -37,7 +48,7 @@ namespace OrderApi.Controllers
             return new ObjectResult(item);
         }
 
-        // POST orders
+        // POST create order
         [HttpPost]
         public IActionResult Post([FromBody]Order order)
         {
@@ -46,35 +57,76 @@ namespace OrderApi.Controllers
                 return BadRequest();
             }
 
-            // Call ProductApi to get the product ordered
-            // You may need to change the port number in the BaseUrl below
-            // before you can run the request.
-            RestClient c = new RestClient("https://localhost:5001/products/");
-            var request = new RestRequest(order.ProductId.ToString());
-            var response = c.GetAsync<Product>(request);
-            response.Wait();
-            var orderedProduct = response.Result;
+            var orderedProducts = GetProductsFromOrderLines(order.OrderLines);
 
-            if (order.Quantity <= orderedProduct.ItemsInStock - orderedProduct.ItemsReserved)
+            if (!ProductItemsAvailable(order, orderedProducts))
+                return StatusCode(500, "Not enough items in stock.");
+            else if (!CustomerHasEnoughCredits(order, orderedProducts))
+                return StatusCode(500, "Customer does not have enough credits");
+            else
             {
-                // reduce the number of items in stock for the ordered product,
-                // and create a new order.
-                orderedProduct.ItemsReserved += order.Quantity;
-                var updateRequest = new RestRequest(orderedProduct.Id.ToString());
-                updateRequest.AddJsonBody(orderedProduct);
-                var updateResponse = c.PutAsync(updateRequest);
-                updateResponse.Wait();
-
-                if (updateResponse.IsCompletedSuccessfully)
+                try
                 {
+                    // Publish OrderStatusChangedMessage. If this operation
+                    // fails, the order will not be created
+                    messagePublisher.PublishOrderStatusChangedMessage(
+                        order.CustomerId, order.OrderLines, StatusEnums.created.ToString());
+
+                    // Create order
+                    order.Status = StatusEnums.created;
                     var newOrder = repository.Add(order);
-                    return CreatedAtRoute("GetOrder",
-                        new { id = newOrder.Id }, newOrder);
+                    return CreatedAtRoute("GetOrder", new { id = newOrder.Id }, newOrder);
+                }
+                catch
+                {
+                    return StatusCode(500, "An error happened. Try again.");
                 }
             }
+        }
 
-            // If the order could not be created, "return no content".
-            return NoContent();
+        private bool ProductItemsAvailable(Order order, List<Product> products)
+        {
+            foreach (var orderLine in order.OrderLines)
+            {
+                var orderedProduct = products.First(p => p.Id == orderLine.ProductId);
+                if (orderLine.Quantity > orderedProduct.ItemsInStock - orderedProduct.ItemsReserved)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private bool CustomerHasEnoughCredits(Order order, List<Product> products)
+        {
+            var totalCost = GetTotalOrderPrice(order.OrderLines, products);
+            var customer = customerServiceGateway.Get(order.CustomerId);
+            if (customer == null) return false;
+            if (customer.CreditStanding < totalCost) return false;
+            return true;
+        }
+
+        private List<Product> GetProductsFromOrderLines(List<OrderLine> orderLines)
+        {
+            var products = new List<Product>();
+            foreach (var orderLine in orderLines)
+            {
+                products.Add(productServiceGateway.Get(orderLine.ProductId));
+
+            }
+            return products;
+        }
+
+        private int GetTotalOrderPrice(List<OrderLine> orderLines, List<Product> products)
+        {
+            var totalCost = 0;
+            foreach (var orderLine in orderLines)
+            {
+                var orderedProduct = products.First(p => p.Id == orderLine.ProductId);
+                var cost = orderedProduct.Price * orderLine.Quantity;
+                totalCost = (int)(totalCost + cost);
+            }
+            return totalCost;
         }
 
         // Edit status of order
@@ -87,28 +139,38 @@ namespace OrderApi.Controllers
                 return BadRequest();
             }
 
-            orderToEdit.Status = status;
-            repository.Edit(orderToEdit);
-            return new NoContentResult();
-        }
-        
-        // Edit order (for CRUD)
-        [HttpPut("{id}")]
-        public IActionResult EditOrder(int id, [FromBody]Order newOrder)
-        {
-            var orderToEdit = repository.Get(id);
-            if (orderToEdit == null)
+            try
             {
-                return BadRequest();
-            }
 
-            orderToEdit.Status = newOrder.Status;
-            orderToEdit.Quantity = newOrder.Quantity;
-            orderToEdit.ProductId = newOrder.ProductId;
-            orderToEdit.Date = newOrder.Date;
-            
-            repository.Edit(orderToEdit);
-            return new NoContentResult();
+                switch (status)
+                {
+                    //notify product service
+                    case StatusEnums.cancelled:
+                    case StatusEnums.shipped:
+                        messagePublisher.PublishOrderStatusChangedMessage(
+                            orderToEdit.CustomerId, orderToEdit.OrderLines, status.ToString());
+                        break;
+
+                    //notify customer service
+                    case StatusEnums.paid:
+                        //count total cost
+                        var orderedProducts = GetProductsFromOrderLines(orderToEdit.OrderLines);
+                        var totalCost = GetTotalOrderPrice(orderToEdit.OrderLines, orderedProducts);
+                        messagePublisher.PublishOrderPaidMessage(
+                            orderToEdit.CustomerId, totalCost, status.ToString());
+                        break;
+                }
+
+                
+                // Update order
+                orderToEdit.Status = status;
+                repository.Edit(orderToEdit);
+                return Ok(orderToEdit);
+            }
+            catch
+            {
+                return StatusCode(500, "An error happened. Try again.");
+            }
         }
 
     }

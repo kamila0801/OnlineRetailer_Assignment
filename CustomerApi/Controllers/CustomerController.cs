@@ -1,5 +1,5 @@
 using CustomerApi.Data;
-using CustomerApi.Models;
+using SharedModels;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CustomerApi.Controllers
@@ -8,9 +8,9 @@ namespace CustomerApi.Controllers
     [ApiController]
     public class CustomerController : ControllerBase
     {
-        private readonly IRepository _repo;
+        private readonly IRepository<Customer> _repo;
 
-        public CustomerController(IRepository repo)
+        public CustomerController(IRepository<Customer> repo)
         {
             _repo = repo;
         }
